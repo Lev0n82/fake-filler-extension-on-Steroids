@@ -45,7 +45,7 @@ const webpackConfig: webpack.Configuration = {
       {
         loader: "file-loader",
         exclude: [/\.(html?)$/, /\.(ts|tsx|js|jsx)$/, /\.css$/, /\.scss$/, /\.json$/],
-        query: {
+        options: {
           name: "[hash].[ext]",
           outputPath: "media/",
           publicPath: "build/",
@@ -58,7 +58,7 @@ const webpackConfig: webpack.Configuration = {
     path: path.join(__dirname, "dist"),
   },
   plugins: [
-    new webpack.IgnorePlugin(/^\.\/locale$/, /moment$/),
+    new webpack.IgnorePlugin({ resourceRegExp: /^\.\/locale$/, contextRegExp: /moment$/ }),
     new MiniCssExtractPlugin({
       filename: "[name].css",
     }),

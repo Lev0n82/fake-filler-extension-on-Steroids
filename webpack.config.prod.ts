@@ -1,9 +1,9 @@
 import * as path from "path";
 
-import * as Dotenv from "dotenv-webpack";
-import * as TerserPlugin from "terser-webpack-plugin";
+import Dotenv from "dotenv-webpack";
 import * as webpack from "webpack";
 import { merge } from "webpack-merge";
+import TerserPlugin from "terser-webpack-plugin";
 
 import webpackConfig from "./webpack.config";
 
@@ -18,6 +18,8 @@ const productionConfig: webpack.Configuration = {
     }),
     new Dotenv({
       path: "./.env.production",
+      silent: true, // Don't fail if .env file is missing
+      defaults: false, // Don't load .env.defaults
     }),
   ],
   optimization: {
@@ -30,7 +32,7 @@ const productionConfig: webpack.Configuration = {
             ascii_only: true,
           },
         },
-      }),
+      }) as any,
     ],
   },
 };

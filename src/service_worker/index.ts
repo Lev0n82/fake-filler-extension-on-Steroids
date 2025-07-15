@@ -1,9 +1,10 @@
 async function getCurrentTabId() {
-  let tab;
-	let queryOptions = { active: true, lastFocusedWindow: true };
-	// `tab` will either be a `tabs.Tab` instance or `undefined`.
-   [tab] = await chrome.tabs.query(queryOptions);
-	return tab?.id ?? -1;
+  const queryOptions = { active: true, lastFocusedWindow: true };
+  return new Promise<number>((resolve) => {
+    chrome.tabs.query(queryOptions, (tabs) => {
+      resolve(tabs[0]?.id ?? -1);
+    });
+  });
 }
 
 import {
@@ -36,7 +37,7 @@ function handleMessage(
   sendResponse: (response: any) => void
 ): boolean | null {
   switch (request.type) {
-    
+
     case "getOptions": {
       GetFakeFillerOptions().then((result) => {
         sendResponse({ options: result });
@@ -69,9 +70,9 @@ function handleMessage(
 
     default:
       return null;
-    }
   }
- 
+}
+
 
 if (chrome.runtime.onInstalled) {
   chrome.runtime.onInstalled.addListener((details) => {
@@ -106,14 +107,15 @@ function fillThisInput() {
 }
 
 chrome.action.onClicked.addListener(
-  async () => { await chrome.scripting.executeScript({
-    func : fillAllInputs,
-    target : {
-      allFrames : true,
-      tabId: await getCurrentTabId()
-    }
-  })
-});
+  async () => {
+    await chrome.scripting.executeScript({
+      func: fillAllInputs,
+      target: {
+        allFrames: true,
+        tabId: await getCurrentTabId()
+      }
+    })
+  });
 
 GetFakeFillerOptions().then((options) => {
   CreateContextMenus(options.enableContextMenu);
@@ -123,61 +125,61 @@ chrome.contextMenus.onClicked.addListener(
   async (info) => {
     if (info.menuItemId === "fake-filler-all") {
       await chrome.scripting.executeScript({
-       func : fillAllInputs,
-       target : {
-         allFrames : true,
-         tabId: await getCurrentTabId()
+        func: fillAllInputs,
+        target: {
+          allFrames: true,
+          tabId: await getCurrentTabId()
         },
       });
     }
     if (info.menuItemId === "fake-filler-form") {
       await chrome.scripting.executeScript({
-        func : fillThisForm,
-        target : {
-          allFrames : true,
+        func: fillThisForm,
+        target: {
+          allFrames: true,
           tabId: await getCurrentTabId()
-                  },
+        },
       });
     }
     if (info.menuItemId === "fake-filler-input") {
       await chrome.scripting.executeScript({
-        func : fillThisInput,
-        target : {
-          allFrames : true,
-          tabId: await getCurrentTabId()          
+        func: fillThisInput,
+        target: {
+          allFrames: true,
+          tabId: await getCurrentTabId()
         },
       });
     }
   }
 );
-    
+
 chrome.commands.onCommand.addListener(
   async (command: string) => {
-  if (command === "fill_all_inputs") {
-    await chrome.scripting.executeScript({
-      func : fillAllInputs,
-      target : {
-        allFrames : true,
-        tabId: await getCurrentTabId()          
-      },
-    });
-  }
-  if (command === "fill_this_form") {
-    await chrome.scripting.executeScript({
-      func : fillThisForm,
-      target : {
-        allFrames : true,
-        tabId: await getCurrentTabId()          
-      },
-    });
-  }
-  if (command === "fill_this_input") {
-    await chrome.scripting.executeScript({
-      func : fillThisInput,
-      target : {
-        allFrames : true,
-        tabId: await getCurrentTabId()
-      },
-    });
-  }
-});
+    if (command === "fill_all_inputs") {
+      await chrome.scripting.executeScript({
+        func: fillAllInputs,
+        target: {
+          allFrames: true,
+          tabId: await getCurrentTabId()
+        },
+      });
+    }
+    if (command === "fill_this_form") {
+      await chrome.scripting.executeScript({
+        func: fillThisForm,
+        target: {
+          allFrames: true,
+          tabId: await getCurrentTabId()
+        },
+      });
+    }
+    if (command === "fill_this_input") {
+      await chrome.scripting.executeScript({
+        func: fillThisInput,
+        target: {
+          allFrames: true,
+          tabId: await getCurrentTabId()
+        },
+      });
+    }
+  });

@@ -1,7 +1,6 @@
-import * as firebase from "firebase/app";
-
-import "firebase/auth";
-import "firebase/firestore";
+import { initializeApp } from "firebase/app";
+import { getAuth, onAuthStateChanged, onIdTokenChanged, setPersistence, signInWithEmailAndPassword, browserLocalPersistence, User as FirebaseAuthUser } from "firebase/auth";
+import { getFirestore, setLogLevel, doc, onSnapshot, setDoc, getDoc, serverTimestamp, FieldValue, Timestamp, Unsubscribe, DocumentSnapshot } from "firebase/firestore";
 
 import { FirebaseUser, FirebaseCustomClaims, IFakeFillerOptions, User } from "src/types";
 
@@ -9,28 +8,28 @@ type AuthStateChangeCallback = (user: FirebaseUser, claims: FirebaseCustomClaims
 type OptionsChangeCallback = (options: IFakeFillerOptions) => void;
 type SettingsSchema = {
   options: string;
-  updatedAt: firebase.firestore.FieldValue;
+  updatedAt: FieldValue;
 };
 
-firebase.initializeApp({
+const app = initializeApp({
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
   projectId: process.env.FIREBASE_PROJECT_ID,
 });
 
-firebase.firestore.setLogLevel("silent");
+const auth = getAuth(app);
+const db = getFirestore(app);
 
-const auth = firebase.auth();
-const db = firebase.firestore();
+setLogLevel("silent");
 
 let firebaseUser: FirebaseUser | null = null;
 let firebaseClaims: FirebaseCustomClaims | null = null;
-let userClaimsUpdatedAt: firebase.firestore.FieldValue | null = null;
-let optionsUpdatedAt: firebase.firestore.FieldValue | null = null;
-let userSnapshotUnsubscribe: firebase.Unsubscribe | null = null;
+let userClaimsUpdatedAt: FieldValue | null = null;
+let optionsUpdatedAt: FieldValue | null = null;
+let userSnapshotUnsubscribe: Unsubscribe | null = null;
 let authStateChangeCallback: AuthStateChangeCallback | null = null;
 
-let optionsSnapshotUnsubscribe: firebase.Unsubscribe | null = null;
+let optionsSnapshotUnsubscribe: Unsubscribe | null = null;
 let optionsChangeCallback: OptionsChangeCallback | null = null;
 
 function unsubscribeAllSnapshots() {
@@ -43,7 +42,7 @@ function unsubscribeAllSnapshots() {
   }
 }
 
-function onNewSettings(snapshot: firebase.firestore.DocumentSnapshot<Partial<SettingsSchema>>) {
+function onNewSettings(snapshot: DocumentSnapshot<Partial<SettingsSchema>>) {
   const data = snapshot.data();
 
   if (!snapshot.metadata.hasPendingWrites && data && data.updatedAt && data.options) {
@@ -55,7 +54,7 @@ function onNewSettings(snapshot: firebase.firestore.DocumentSnapshot<Partial<Set
   }
 }
 
-async function onNewClaims(snapshot: firebase.firestore.DocumentSnapshot<Partial<User>>) {
+async function onNewClaims(snapshot: DocumentSnapshot<Partial<User>>) {
   const data = snapshot.data();
 
   if (firebaseUser && data && data.claimsUpdatedAt) {
@@ -67,14 +66,14 @@ async function onNewClaims(snapshot: firebase.firestore.DocumentSnapshot<Partial
   }
 }
 
-auth.onAuthStateChanged((user) => {
+onAuthStateChanged(auth, (user: FirebaseAuthUser | null) => {
   firebaseUser = user;
 
   if (user) {
     unsubscribeAllSnapshots();
 
-    userSnapshotUnsubscribe = db.collection("users").doc(user.uid).onSnapshot(onNewClaims);
-    optionsSnapshotUnsubscribe = db.collection("settings").doc(user.uid).onSnapshot(onNewSettings);
+    userSnapshotUnsubscribe = onSnapshot(doc(db, "users", user.uid), onNewClaims);
+    optionsSnapshotUnsubscribe = onSnapshot(doc(db, "settings", user.uid), onNewSettings);
   } else {
     unsubscribeAllSnapshots();
 
@@ -84,7 +83,7 @@ auth.onAuthStateChanged((user) => {
   }
 });
 
-auth.onIdTokenChanged(async (user) => {
+onIdTokenChanged(auth, async (user: FirebaseAuthUser | null) => {
   if (authStateChangeCallback) {
     if (user) {
       const result = await user.getIdTokenResult(false);
@@ -105,8 +104,8 @@ export function onOptionsChange(callback: OptionsChangeCallback) {
 }
 
 export async function login(email: string, password: string) {
-  await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-  const result = await auth.signInWithEmailAndPassword(email, password);
+  await setPersistence(auth, browserLocalPersistence);
+  const result = await signInWithEmailAndPassword(auth, email, password);
   if (result && result.user && result.user.email) {
     firebaseUser = result.user;
     return firebaseUser;
@@ -123,12 +122,12 @@ export function logout() {
 
 export async function saveOptionsToDb(options: IFakeFillerOptions) {
   if (firebaseUser && firebaseClaims && firebaseClaims.subscribed) {
-    const updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    const updatedAt = serverTimestamp();
 
-    await db
-      .collection("settings")
-      .doc(firebaseUser.uid)
-      .set({ options: JSON.stringify(options), updatedAt }, { merge: true });
+    await setDoc(doc(db, "settings", firebaseUser.uid),
+      { options: JSON.stringify(options), updatedAt },
+      { merge: true }
+    );
 
     return updatedAt;
   }
@@ -138,14 +137,14 @@ export async function saveOptionsToDb(options: IFakeFillerOptions) {
 
 export async function getOptionsLastUpdatedTimestamp() {
   if (optionsUpdatedAt) {
-    return (optionsUpdatedAt as firebase.firestore.Timestamp).toDate();
+    return (optionsUpdatedAt as Timestamp).toDate();
   }
 
   if (firebaseUser) {
-    const result = await db.collection("settings").doc(firebaseUser.uid).get();
-    if (result.exists) {
+    const result = await getDoc(doc(db, "settings", firebaseUser.uid));
+    if (result.exists()) {
       optionsUpdatedAt = (result.data() as SettingsSchema).updatedAt;
-      return (optionsUpdatedAt as firebase.firestore.Timestamp).toDate();
+      return (optionsUpdatedAt as Timestamp).toDate();
     }
   }
 
